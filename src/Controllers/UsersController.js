@@ -1,35 +1,27 @@
 const { hash,compare } = require("bcryptjs");
 const sqliteConnection = require("../database/sqlite");
 const AppError = require("../utils/AppError");
+const UserRepository = require("../repositories/UserRepository");
+const UserRepositoryInMemory = require("../repositories/UserRepositoryInMemory");
+const UserCreateService = require("../services/UserCreateService");
+
 
 class UsersController{
   async create(request, response){
     const { name, email, password } = request.body;
-
-    const database = await sqliteConnection();
-
-    const checkUserExists = await database.get("SELECT * FROM users WHERE email = (?)", [email])
-
-    if(checkUserExists){
-      throw new AppError("Este email já esta em uso.")
-    }
-
-    const hashedPassword = await hash(password,8);
-
-    await database.run("INSERT INTO users (name, email, password) VALUES (?,?,?)",
-    [name, email, hashedPassword]
-    );
-
+    const userRepository = new UserRepository();
+    const userCreateService = new UserCreateService(userRepository);
+    await userCreateService.execute({ name, email, password });
     return response.status(201).json();
 
   }
 
   async update(request, response){
     const {name, email, password,old_password} = request.body;
-    const { id } = request.params;
+    const user_id = request.user.id;
 
     const database = await sqliteConnection();
-    const user = await database.get("SELECT * FROM users WHERE id = (?)" , [id]);
+    const user = await database.get("SELECT * FROM users WHERE id = (?)" , [user_id]);
 
     if(!user){
       throw new AppError("Usuário não encontrado");
@@ -65,7 +57,7 @@ class UsersController{
     password = ?,
     updated_at = DATETIME('now')
     WHERE id = ?`,
-    [user.name,user.email,user.password,id]);
+    [user.name,user.email,user.password,user_id]);
 
     return response.status(200).json();
   }
